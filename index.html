@@ -1,0 +1,420 @@
+<!doctype html>
+<html>
+<head>
+<title>LEGO Pirates Treasure Hunt</title>
+<style>
+body {
+	background: #000;
+	color: #fff;
+}
+.world {
+	border-collapse: collapse;
+	user-select: none;
+}
+.world > tr > td {
+	height: 150px;
+	padding: 0;
+	width: 150px;
+}
+.world > tr > td > img {
+	display: block;
+	margin: 0;
+}
+.sea > .world, .sea > .map {
+	background: #039;
+}
+.land > .world, .land > .map {
+	background: #fc6;
+}
+.map {
+	border-collapse: collapse;
+}
+.map > tr > td {
+	height: 32px;
+	padding: 0;
+	width: 32px;
+}
+.map > tr > td > img {
+	display: block;
+	margin: 0;
+}
+.navigable {
+	cursor: pointer;
+}
+.score > img {
+	height: 10px;
+	vertical-align: middle;
+	width: 10px;
+}
+</style>
+</head>
+<body>
+
+<script>
+'use strict';
+{
+	const Coordinates = class {
+		constructor(...values) {
+			this.values = values;
+		}
+
+		x() {
+			return this.values[0];
+		}
+
+		y() {
+			return this.values[1];
+		}
+
+		isOrigin() {
+			return this.values.every((value) => value == 0);
+		}
+
+		add(coordinates) {
+			return new Coordinates(...this.values.map((value, i) => {
+				return value + coordinates.values[i];
+			}));
+		}
+
+		static from2D(x, y) {
+			return new Coordinates(x, y);
+		}
+	};
+
+	const Space = class {
+		constructor(from, to) {
+			this.from = from;
+			this.to = to;
+		}
+
+		getRelative(coordinates) {
+			return new Coordinates(...coordinates.values.map((value, i) => {
+				return value < this.from.values[i] ? -1 : value >= this.to.values[i] ? 1 : 0;
+			}));
+		}
+
+		getSize() {
+			return new Coordinates(...this.to.values.map((toValue, i) => toValue - this.from.values[i]));
+		}
+	};
+
+	const WorldMap = class {
+		constructor(name, borderTiles, playerTile, tiles, start, viewRadius) {
+			this.name = name;
+			this.borderTiles = borderTiles;
+			this.playerTile = playerTile;
+			this.tiles = tiles;
+			this.start = start;
+			this.viewRadius = viewRadius;
+
+			const height = tiles.length;
+			const width = tiles[0].length;
+			this.size = new Coordinates(width, height);
+			this.dimensions = new Space(new Coordinates(0, 0), this.size);
+		}
+
+		get(coordinates) {
+			const relative = this.dimensions.getRelative(coordinates);
+			if (!relative.isOrigin()) {
+				return this.borderTiles[relative.y() + 1][relative.x() + 1];
+			}
+			return this.tiles[coordinates.y()][coordinates.x()];
+		}
+
+		createView(doc, game) {
+			const container = doc.createElement('div');
+			container.classList.add(this.name);
+			const worldView = doc.createElement('table');
+			worldView.classList.add('world');
+			container.appendChild(worldView);
+			for (let y = -this.viewRadius; y <= this.viewRadius; y++) {
+				const row = doc.createElement('tr');
+				worldView.appendChild(row);
+				for (let x = -this.viewRadius; x <= this.viewRadius; x++) {
+					const viewCoordinates = new Coordinates(x, y);
+					const cell = doc.createElement('td');
+					row.appendChild(cell);
+					const img = doc.createElement('img');
+					cell.appendChild(img);
+
+					const isCenter = x == 0 && y == 0;
+					if (!isCenter) {
+						cell.addEventListener('click', (event) => {
+							const mapCoordinates = game.coordinates.add(viewCoordinates);
+							const mapRelative = this.dimensions.getRelative(mapCoordinates);
+							if (mapRelative.isOrigin()) {
+								const tile = this.get(mapCoordinates);
+								if (tile.isNavigable()) {
+									game.moveTo(mapCoordinates);
+								}
+							}
+						}, false);
+					}
+				}
+			}
+
+			const mapView = doc.createElement('table');
+			mapView.classList.add('map');
+			container.appendChild(mapView);
+			for (let y = 0; y < this.dimensions.to.y(); y++) {
+				const row = doc.createElement('tr');
+				mapView.appendChild(row);
+				for (let x = 0; x < this.dimensions.to.x(); x++) {
+					const cell = doc.createElement('td');
+					row.appendChild(cell);
+					const img = doc.createElement('img');
+					this.get(new Coordinates(x, y)).setMapImageUrl(img);
+					cell.appendChild(img);
+				}
+			}
+
+			return container;
+		}
+	};
+
+	const Game = class {
+		constructor(map, coordinates, score, steps, doc, parent) {
+			this.map = map;
+			this.coordinates = coordinates;
+			this.score = score;
+			this.steps = steps;
+			this.doc = doc;
+			this.parent = parent;
+			this.view = null;
+			this.mapPlayerCoordinates = null;
+		}
+
+		moveTo(newCoordinates) {
+			const relative = this.map.dimensions.getRelative(newCoordinates);
+			if (relative.isOrigin()) {
+				this.coordinates = newCoordinates;
+				this.steps++;
+				this.score--;
+				this.updateView();
+			} else {
+				throw new Error('navigateTo coordinates are out-of-bounds');
+			}
+		}
+
+		setMap(map, coordinates) {
+			this.map = map;
+			this.coordinates = coordinates;
+			this.createView();
+		}
+
+		updateView() {
+			const mapContainer = this.view.childNodes[0];
+			const worldView = mapContainer.childNodes[0];
+			const mapView = mapContainer.childNodes[1];
+
+			Array.prototype.forEach.call(worldView.childNodes, (row, y) => {
+				Array.prototype.forEach.call(row.childNodes, (cell, x) => {
+					const relative = new Coordinates(x - this.map.viewRadius, y - this.map.viewRadius);
+					const img = cell.firstChild;
+					if (relative.isOrigin()) {
+						this.map.playerTile.setWorldImageUrl(img);
+					} else {
+						const coordinates = this.coordinates.add(relative);
+						const tile = this.map.get(coordinates);
+						const img = cell.firstChild;
+						tile.setWorldImageUrl(img);
+						cell.classList.toggle('navigable', tile.isNavigable());
+					}
+				});
+			});
+
+			if (this.mapPlayerCoordinates) {
+				this.map.get(this.mapPlayerCoordinates).setMapImageUrl(mapView.childNodes[this.mapPlayerCoordinates.y()].childNodes[this.mapPlayerCoordinates.x()].firstChild);
+			}
+			this.mapPlayerCoordinates = this.coordinates;
+			this.map.playerTile.setMapImageUrl(mapView.childNodes[this.coordinates.y()].childNodes[this.coordinates.x()].firstChild);
+
+			const scoreContainer = this.view.childNodes[1];
+			scoreContainer.childNodes[1].style.width = `${ this.score * 10 }px`;
+			scoreContainer.childNodes[3].nodeValue = this.score;
+			const stepNode = this.view.childNodes[2].childNodes[1];
+			stepNode.nodeValue = this.steps;
+		}
+
+		createView() {
+			if (this.view) {
+				this.parent.removeChild(this.view);
+			}
+
+			this.view = this.doc.createElement('div');
+			this.view.classList.add('game');
+			this.parent.appendChild(this.view);
+
+			const mapContainer = this.map.createView(this.doc, this);
+			this.view.appendChild(mapContainer);
+
+			const scoreContainer = this.doc.createElement('div');
+			scoreContainer.classList.add('score');
+			this.view.appendChild(scoreContainer);
+			['Left', 'Middle', 'Right'].forEach((part) => {
+				const scoreBar = this.doc.createElement('img');
+				scoreBar.src = `img/scoreBar${ part }.png`;
+				scoreContainer.appendChild(scoreBar);
+			});
+			scoreContainer.appendChild(this.doc.createTextNode(''));
+
+			const stepContainer = this.doc.createElement('div');
+			this.view.appendChild(stepContainer);
+			stepContainer.appendChild(this.doc.createTextNode('Steps used: '));
+			stepContainer.appendChild(this.doc.createTextNode(''));
+
+			this.updateView();
+		}
+	};
+
+	const rToTile = new Map();
+	const Tile = class {
+		constructor(mapType, worldType, transition) {
+			this.mapType = mapType;
+			this.worldType = worldType;
+			this.transition = transition;
+		}
+
+		isNavigable() {
+			return this.transition != Tile.IMPASSIBLE;
+		}
+
+		setMapImageUrl(img) {
+			Tile.setImageUrl(img, this.mapType && `sea/map/${ this.mapType }.png`);
+		}
+
+		setWorldImageUrl(img) {
+			Tile.setImageUrl(img, this.worldType && `sea/world/${ this.worldType }.png`);
+		}
+
+		static setImageUrl(img, src) {
+			if (src == null) {
+				img.removeAttribute('src');
+			} else {
+				img.src = src;
+			}
+		}
+	};
+	Tile.IMPASSIBLE = null;
+	Tile.NOOP = (score, items) => {};
+	const TILES = {
+		PLAYER: new Tile('player', 'player', null),
+		borders: ['Top', '', 'Bottom'].map((vertical) => {
+			return ['Left', '', 'Right'].map((horizontal) => {
+				if (vertical == '' && horizontal == '') {
+					return null;
+				}
+				return new Tile(null, 'border' + vertical + horizontal, null);
+			});
+		}),
+		byR: new Map(),
+	};
+
+	{
+		const rTiles = {
+			' ': [null, null, Tile.NOOP],
+			'~': [null, 'wave', Tile.NOOP],
+			'#': ['rock', 'rock', Tile.IMPASSIBLE],
+			'O': ['rock', 'monkeyIsland', Tile.IMPASSIBLE],
+			'C': ['rock', 'crocIsland', Tile.IMPASSIBLE],
+			'q': [null, 'islandTopLeft', Tile.IMPASSIBLE],
+			'n': [null, 'islandTop', Tile.IMPASSIBLE],
+			'p': [null, 'islandTopRight', Tile.IMPASSIBLE],
+			'<': [null, 'islandLeft', Tile.IMPASSIBLE],
+			'L': [null, 'islandBottomLeft', Tile.IMPASSIBLE],
+			'.': ['gold', 'chest', (score, items) => { score += 4; }],
+			'!': ['gold', 'chestGold', Tile.NOOP],
+			'$': ['gold', 'barrelGold', (score, items) => { score += 7; }],
+			'+': ['gold', 'shipwreck', Tile.NOOP],
+			'B': ['bottle', 'bottle', Tile.NOOP],
+			'S': ['shovel', 'shovel', Tile.NOOP],
+			'T': ['treasure', 'treasureIsland', []],
+			'*': [null, 'octopus', (score, items) => { score -= 6; }],
+			',': [null, 'sharkHead', (score, items) => { score -= 6; }],
+			'%': [null, 'enemyPirate', (score, items) => { score -= 6; }],
+			'/': [null, 'enemySoldier', (score, items) => { score -= 6; }],
+			'&': [null, 'enemyCannon', (score, items) => { score -= 6; }],
+		};
+
+		{
+			Object.keys(rTiles).forEach((rSymbol) => {
+				const [mapType, worldType, transition] = rTiles[rSymbol];
+				TILES.byR.set(rSymbol, new Tile(mapType, worldType, transition));
+			});
+		}
+	}
+
+	const win = window;
+	const doc = win.document;
+
+	let game;
+	{
+		const rMaps = [
+			['sea', 1, '#039', [
+				'.          .  ',
+				'    # #       ',
+				' # .  #       ',
+				'  #    #B  . T',
+				'        #     ',
+				' C~  #   .#.  ',
+				'~~ #~~+~!~    ',
+				' ~O /~~C ~C # ',
+				'  ~#  $~~ $   ',
+				' O~,~.~ CS &  ',
+				'~~$~O C~~O~   ',
+				'. #~~~~*  #  .',
+				'~O ~~@  ~~~%  ',
+				'  ~~qnp ~O~   ',
+			]],
+			['land', 1, '#fc6', [
+				'.          .  ',
+				'    # #       ',
+				' # .  #       ',
+				'  #    #B  . T',
+				'        #     ',
+				' C~  #   .#.  ',
+				'~~ #~~+~!~    ',
+				' ~O /~~C ~C # ',
+				'  ~#  $~~ $   ',
+				' O~,~.~ CS &  ',
+				'~~$~O C~~O~   ',
+				'. #~~~~*  #  .',
+				'~O ~~@  ~~~%  ',
+				'  ~~qnp ~O~   ',
+			]],
+		];
+
+		const maps = new Map();
+		rMaps.forEach((rMap, i) => {
+			const [name, viewRadius, color, rTiles] = rMap;
+			const tiles = [];
+			let start = new Coordinates(0, 0);
+
+			const height = rTiles.length;
+			const width = rTiles[0].length;
+
+			rTiles.forEach((rRow, rY) => {
+				const row = [];
+				tiles.push(row);
+				rRow.split('').forEach((rTile, rX) => {
+					if (rTile == '@') {
+						start = new Coordinates(rX, rY);
+						rTile = ' ';
+					}
+					row.push(TILES.byR.get(rTile));
+				});
+			});
+
+			const map = new WorldMap(name, TILES.borders, TILES.PLAYER, tiles, start, viewRadius);
+			maps.set(name, map);
+			if (i == 0) {
+				game = new Game(map, map.start, 19, 1, doc, doc.body);
+			}
+		});
+	}
+
+	game.createView();
+}
+</script>
+</body>
+</html>
