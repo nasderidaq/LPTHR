@@ -16,6 +16,9 @@ body {
 	border-collapse: collapse;
 	user-select: none;
 }
+.mainView.mapOpen .world {
+	display: none;
+}
 .world > tr > td {
 	height: 150px;
 	padding: 0;
@@ -34,6 +37,10 @@ body {
 }
 .map {
 	border-collapse: collapse;
+	display: none;
+}
+.mainView.mapOpen .map {
+	display: block;
 }
 .map > tr > td {
 	height: 32px;
@@ -192,6 +199,8 @@ body {
 			this.coordinates = coordinates;
 			this.score = score;
 			this.steps = steps;
+			this.mapOpen = false;
+			// UI
 			this.doc = doc;
 			this.parent = parent;
 			this.view = null;
@@ -243,6 +252,10 @@ body {
 			this.mapPlayerCoordinates = this.coordinates;
 			this.map.playerTile.setMapImageUrl(mapView.childNodes[this.coordinates.y()].childNodes[this.coordinates.x()].firstChild);
 
+			this.updateScoreView();
+		}
+
+		updateScoreView() {
 			const scoreContainer = this.view.childNodes[2];
 			scoreContainer.childNodes[1].style.width = `${ this.score * 10 }px`;
 			scoreContainer.childNodes[3].nodeValue = this.score;
@@ -273,6 +286,15 @@ body {
 			const mapControl = this.doc.createElement('img');
 			mapControl.src = 'img/map.png';
 			controlContainer.appendChild(mapControl);
+			mapControl.addEventListener('click', (event) => {
+				this.mapOpen = !this.mapOpen;
+				if (this.mapOpen) {
+					this.score -= 1;
+				}
+				this.steps++;
+				this.view.childNodes[0].classList.toggle('mapOpen', this.mapOpen);
+				this.updateScoreView();
+			}, false);
 
 			const scoreContainer = this.doc.createElement('div');
 			scoreContainer.classList.add('score');
