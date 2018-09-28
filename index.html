@@ -7,6 +7,10 @@ body {
 	background: #000;
 	color: #fff;
 }
+.mainView {
+	height: 450px;
+	width: 450px;
+}
 .world {
 	border-collapse: collapse;
 	user-select: none;
@@ -19,6 +23,7 @@ body {
 .world > tr > td > img {
 	display: block;
 	margin: 0;
+	-webkit-user-drag: none;
 }
 .sea > .world, .sea > .map {
 	background: #039;
@@ -121,9 +126,9 @@ body {
 			return this.tiles[coordinates.y()][coordinates.x()];
 		}
 
-		createView(doc, game) {
+		createWorld(doc, game) {
 			const container = doc.createElement('div');
-			container.classList.add(this.name);
+			container.classList.add('mainView', this.name);
 			const worldView = doc.createElement('table');
 			worldView.classList.add('world');
 			container.appendChild(worldView);
@@ -245,7 +250,7 @@ body {
 			this.view.classList.add('game');
 			this.parent.appendChild(this.view);
 
-			const mapContainer = this.map.createView(this.doc, this);
+			const mapContainer = this.map.createWorld(this.doc, this);
 			this.view.appendChild(mapContainer);
 
 			const scoreContainer = this.doc.createElement('div');
