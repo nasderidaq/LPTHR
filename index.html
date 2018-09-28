@@ -8,6 +8,7 @@ body {
 	color: #fff;
 }
 .mainView {
+	display: inline-block;
 	height: 450px;
 	width: 450px;
 }
@@ -50,6 +51,14 @@ body {
 	height: 10px;
 	vertical-align: middle;
 	width: 10px;
+}
+.controls {
+	display: inline-block;
+	padding-top: 267px;;
+	vertical-align: top;
+}
+.controls img {
+	cursor: pointer;
 }
 </style>
 </head>
@@ -234,10 +243,10 @@ body {
 			this.mapPlayerCoordinates = this.coordinates;
 			this.map.playerTile.setMapImageUrl(mapView.childNodes[this.coordinates.y()].childNodes[this.coordinates.x()].firstChild);
 
-			const scoreContainer = this.view.childNodes[1];
+			const scoreContainer = this.view.childNodes[2];
 			scoreContainer.childNodes[1].style.width = `${ this.score * 10 }px`;
 			scoreContainer.childNodes[3].nodeValue = this.score;
-			const stepNode = this.view.childNodes[2].childNodes[1];
+			const stepNode = this.view.childNodes[3].childNodes[1];
 			stepNode.nodeValue = this.steps;
 		}
 
@@ -252,6 +261,18 @@ body {
 
 			const mapContainer = this.map.createWorld(this.doc, this);
 			this.view.appendChild(mapContainer);
+
+			const controlContainer = this.doc.createElement('div');
+			controlContainer.classList.add('controls');
+			this.view.appendChild(controlContainer);
+
+			const saveControl = this.doc.createElement('img');
+			saveControl.src = 'img/save.png';
+			controlContainer.appendChild(saveControl);
+
+			const mapControl = this.doc.createElement('img');
+			mapControl.src = 'img/map.png';
+			controlContainer.appendChild(mapControl);
 
 			const scoreContainer = this.doc.createElement('div');
 			scoreContainer.classList.add('score');
