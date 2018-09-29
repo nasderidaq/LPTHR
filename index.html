@@ -59,6 +59,9 @@ body {
 	vertical-align: middle;
 	width: 10px;
 }
+.steps {
+	margin-top: 16px;
+}
 .controls {
 	display: inline-block;
 	padding-top: 267px;;
@@ -207,9 +210,7 @@ body {
 			this.start = start;
 			this.viewRadius = viewRadius;
 
-			const height = tiles.length;
-			const width = tiles[0].length;
-			this.size = new Coordinates(width, height);
+			this.size = new Coordinates(tiles[0].length, tiles.length);
 			this.dimensions = new Space(new Coordinates(0, 0), this.size);
 		}
 
@@ -220,6 +221,12 @@ body {
 			}
 			return this.tiles[coordinates.y()][coordinates.x()];
 		}
+
+		update(coordinates, tile) {
+			if (this.dimensions.doesContain(coordinates)) {
+				this.tiles[coordinates.y()][coordinates.x()] = tile;
+			}
+		}
 	};
 
 	const Game = class {
@@ -229,12 +236,17 @@ body {
 			this.score = new LiveValue(score);
 			this.steps = new LiveValue(steps);
 			this.mapOpen = new LiveValue(false);
+			this.message = new LiveValue(null);
 		}
 
 		move(offset) {
 			const newCoordinates = this.coordinates.get().add(offset);
 			if (!this.mapOpen.get() && this.map.get(newCoordinates).isNavigable()) {
-				this.moveTo(newCoordinates);
+				this.coordinates.set(newCoordinates);
+				this.steps.set(this.steps.get() + 1);
+				this.score.set(this.score.get() - 1);
+				this.message.set(null);
+				this.map.get(newCoordinates).transition(this);
 			}
 		}
 
@@ -247,10 +259,15 @@ body {
 			this.steps.set(this.steps.get() + 1);
 		}
 
-		moveTo(newCoordinates) {
-			this.coordinates.set(newCoordinates);
-			this.steps.set(this.steps.get() + 1);
-			this.score.set(this.score.get() - 1);
+		addPoints(delta) {
+			if (delta != 0) {
+				this.message.set(`You just ${delta > 0 ? 'gained' : 'lost'} ${delta} points!`);
+				this.score.set(this.score.get() + delta);
+			}
+		}
+
+		updateTile(tile) {
+			this.map.update(this.coordinates.get(), tile);
 		}
 
 		setMap(map, coordinates) {
@@ -298,7 +315,28 @@ body {
 			scoreText.nodeValue = score;
 		});
 
+		const messageContainer = doc.createElement('div');
+		view.appendChild(messageContainer);
+
+		let messageNode = null;
+		game.message.listen((message) => {
+			if (message == null) {
+				if (messageNode) {
+					messageContainer.removeChild(messageNode);
+					messageNode = null;
+				}
+			} else {
+				if (!messageNode) {
+					messageNode = doc.createTextNode(message);
+					messageContainer.appendChild(messageNode);
+				} else {
+					messageNode.nodeValue = message;
+				}
+			}
+		});
+
 		const stepContainer = doc.createElement('div');
+		stepContainer.classList.add('steps');
 		view.appendChild(stepContainer);
 		stepContainer.appendChild(doc.createTextNode('Steps used: '));
 		const stepText = doc.createTextNode('');
@@ -414,11 +452,11 @@ body {
 		}
 	};
 	Tile.IMPASSIBLE = null;
-	Tile.NOOP = (score, items) => {};
+	Tile.NOOP = (game) => {};
 
 	const TILES = {
 		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE), // Row Boat, Foot
-		SURFACE_1: new Tile(null, null, Tile.NOOP), // Ocean, Sand
+		SURFACE_1: new Tile(null, null, Tile.NOOP), // Water, Sand
 		SURFACE_2: new Tile(null, 'surface2', Tile.NOOP), // Wave, Dune
 		OBSTACLE_1: new Tile('obstacle', 'obstacle1', Tile.IMPASSIBLE), // Rock, 
 		OBSTACLE_2: new Tile('obstacle', 'obstacle2', Tile.IMPASSIBLE), // Monkey Island, 
@@ -430,20 +468,26 @@ body {
 		OBSTACLE_TOP_RIGHT: new Tile(null, 'obstacleTopRight', Tile.IMPASSIBLE), // Island Top Right, 
 		OBSTACLE_MIDDLE_LEFT: new Tile(null, 'obstacleLeft', Tile.IMPASSIBLE), // Island Middle Left, 
 		OBSTACLE_BOTTOM_LEFT: new Tile(null, 'obstacleBottomLeft', Tile.IMPASSIBLE), // Island Bottom Left, 
-		TREASURE_1: new Tile('treasure', 'treasure1', (score, items) => { score += 4; }), // Closed Chest, 
-		TREASURE_2: new Tile('treasure', 'treasure2', (score, items) => { score += 4; }), // Open Gold Chest,
-		TREASURE_3: new Tile('treasure', 'treasure3', (score, items) => { score += 4; }), // Gold Barrel, 
-		TREASURE_4: new Tile('treasure', 'treasure4', (score, items) => { score += 4; }), // Shipwreck, 
-		ITEM_1: new Tile('item1', 'item1', Tile.NOOP), // Bottle, 
-		ITEM_2: new Tile('item2', 'item2', Tile.NOOP), // Shovel, 
-		GOAL: new Tile('goal', 'goal', Tile.NOOP), // Treasure Island, 
-		ENEMY_1: new Tile(null, 'enemy1', (score, items) => { score -= 6; }), // Octopus, 
-		ENEMY_2: new Tile(null, 'enemy2', (score, items) => { score -= 6; }), // Shark Head, 
-		ENEMY_3: new Tile(null, 'enemy3', (score, items) => { score -= 6; }), // Pirate, 
-		ENEMY_4: new Tile(null, 'enemy4', (score, items) => { score -= 6; }), // Soldier, 
-		ENEMY_5: new Tile(null, 'enemy5', (score, items) => { score -= 6; }), // Cannon, 
-		ENEMY_6: new Tile(null, 'enemy6', (score, items) => { score -= 6; }), // Shark Fin, 
-		ENEMY_7: new Tile(null, 'enemy7', (score, items) => { score -= 6; }), // Skeleton, 
+		TREASURE_1: new Tile('treasure', 'treasure1', (game) => { game.addPoints(4); game.updateTile(TILES.TREASURE_1_EMPTY); }), // Closed Chest, 
+		TREASURE_2: new Tile('treasure', 'treasure2', (game) => { game.addPoints(4); game.updateTile(TILES.TREASURE_2_EMPTY); }), // Open Gold Chest,
+		TREASURE_3: new Tile('treasure', 'treasure3', (game) => { game.addPoints(4); game.updateTile(TILES.TREASURE_3_EMPTY); }), // Gold Barrel, 
+		TREASURE_4: new Tile('treasure', 'treasure4', (game) => { game.addPoints(4); game.updateTile(TILES.TREASURE_4_EMPTY); }), // Shipwreck, 
+		TREASURE_1_EMPTY: new Tile('treasure', 'treasure1Empty', Tile.NOOP), // Closed Chest, 
+		TREASURE_2_EMPTY: new Tile('treasure', 'treasure2Empty', Tile.NOOP), // Open Gold Chest,
+		TREASURE_3_EMPTY: new Tile('treasure', 'treasure3Empty', Tile.NOOP), // Gold Barrel, 
+		TREASURE_4_EMPTY: new Tile('treasure', 'treasure4Empty', Tile.NOOP), // Shipwreck, 
+		ITEM_1: new Tile('item1', 'item1', (game) => { game.updateTile(TILES.ITEM_1_EMPTY); }), // Bottle, 
+		ITEM_2: new Tile('item2', 'item2', (game) => { game.updateTile(TILES.ITEM_2_EMPTY); }), // Shovel, 
+		ITEM_1_EMPTY: new Tile('item1', 'item1Empty', Tile.NOOP), // Water, 
+		ITEM_2_EMPTY: new Tile('item2', 'item2Empty', Tile.NOOP), // Raft, 
+		GOAL: new Tile('goal', 'goal', (game) => { }), // Treasure Island, 
+		ENEMY_1: new Tile(null, 'enemy1', (game) => { game.addPoints(-6); }), // Octopus, 
+		ENEMY_2: new Tile(null, 'enemy2', (game) => { game.addPoints(-6); }), // Shark Head, 
+		ENEMY_3: new Tile(null, 'enemy3', (game) => { game.addPoints(-6); }), // Pirate, 
+		ENEMY_4: new Tile(null, 'enemy4', (game) => { game.addPoints(-6); }), // Soldier, 
+		ENEMY_5: new Tile(null, 'enemy5', (game) => { game.addPoints(-6); }), // Cannon, 
+		ENEMY_6: new Tile(null, 'enemy6', (game) => { game.addPoints(-6); }), // Shark Fin, 
+		ENEMY_7: new Tile(null, 'enemy7', (game) => { game.addPoints(-6); }), // Skeleton, 
 	};
 
 	const BORDER_TILES = ['Top', '', 'Bottom'].map((vertical) => {
@@ -454,32 +498,6 @@ body {
 			return new Tile(null, 'border' + vertical + horizontal, Tile.IMPASSIBLE);
 		});
 	});
-
-	const TILES_BY_R = new Map([
-		['@', TILES.SURFACE_1],
-		[' ', TILES.SURFACE_1],
-		['~', TILES.SURFACE_2],
-		['#', TILES.OBSTACLE_1],
-		['O', TILES.OBSTACLE_2],
-		['C', TILES.OBSTACLE_3],
-		['q', TILES.OBSTACLE_TOP_LEFT],
-		['n', TILES.OBSTACLE_TOP_MIDDLE],
-		['p', TILES.OBSTACLE_TOP_RIGHT],
-		['<', TILES.OBSTACLE_MIDDLE_LEFT],
-		['L', TILES.OBSTACLE_BOTTOM_LEFT],
-		['.', TILES.TREASURE_1],
-		['!', TILES.TREASURE_2],
-		['$', TILES.TREASURE_3],
-		['+', TILES.TREASURE_4],
-		['B', TILES.ITEM_1],
-		['S', TILES.ITEM_2],
-		['T', TILES.GOAL],
-		['*', TILES.ENEMY_1],
-		[',', TILES.ENEMY_2],
-		['%', TILES.ENEMY_3],
-		['/', TILES.ENEMY_4],
-		['&', TILES.ENEMY_5],
-	]);
 
 	let game;
 	{
@@ -517,6 +535,32 @@ body {
 				'  ~~qnp ~O~   ',
 			]],
 		];
+
+		const TILES_BY_R = new Map([
+			['@', TILES.SURFACE_1],
+			[' ', TILES.SURFACE_1],
+			['~', TILES.SURFACE_2],
+			['#', TILES.OBSTACLE_1],
+			['O', TILES.OBSTACLE_2],
+			['C', TILES.OBSTACLE_3],
+			['q', TILES.OBSTACLE_TOP_LEFT],
+			['n', TILES.OBSTACLE_TOP_MIDDLE],
+			['p', TILES.OBSTACLE_TOP_RIGHT],
+			['<', TILES.OBSTACLE_MIDDLE_LEFT],
+			['L', TILES.OBSTACLE_BOTTOM_LEFT],
+			['.', TILES.TREASURE_1],
+			['!', TILES.TREASURE_2],
+			['$', TILES.TREASURE_3],
+			['+', TILES.TREASURE_4],
+			['B', TILES.ITEM_1],
+			['S', TILES.ITEM_2],
+			['T', TILES.GOAL],
+			['*', TILES.ENEMY_1],
+			[',', TILES.ENEMY_2],
+			['%', TILES.ENEMY_3],
+			['/', TILES.ENEMY_4],
+			['&', TILES.ENEMY_5],
+		]);
 
 		const maps = new Map();
 		rMaps.forEach((rMap, i) => {
