@@ -74,6 +74,81 @@ body {
 <script>
 'use strict';
 {
+	const win = window;
+	const Object = win.Object;
+	const Array = win.Array;
+	const Map = win.Map;
+	const Set = win.Set;
+	const doc = win.document;
+
+	const RemovableItemSet = class {
+		constructor() {
+			this.items = new Set();
+		}
+
+		add(value) {
+			const item = new RemovableItem(this, value);
+			this.items.add(item);
+			return item;
+		}
+
+		*[Symbol.iterator]() {
+			for (let item of this.items) {
+				yield item.value;
+			}
+		}
+	};
+
+	const RemovableItem = class {
+		constructor(set, value) {
+			this.set = set;
+			this.value = value;
+		}
+
+		isActive() {
+			return this.set != null;
+		}
+
+		stop() {
+			if (this.set) {
+				this.set.items.delete(this);
+				this.set = null;
+			}
+		}
+	};
+
+	const LiveValue = class {
+		constructor(value) {
+			this.value = value;
+			this.listeners = new RemovableItemSet();
+			this.updating = false;
+		}
+
+		get() {
+			return this.value;
+		}
+
+		set(newValue) {
+			if (newValue !== this.value) {
+				this.value = newValue;
+				this.updating = true;
+				for (let listener of this.listeners) {
+					listener(newValue);
+					if (!this.updating) {
+						return;
+					}
+				}
+				this.updating = false;
+			}
+		}
+
+		listen(handler) {
+			const listener = this.listeners.add(handler);
+			handler(this.value);
+			return listener;
+		}
+	};
+
 	const Coordinates = class {
 		constructor(...values) {
 			this.values = values;
@@ -114,6 +189,10 @@ body {
 			}));
 		}
 
+		doesContain(coordinates) {
+			return this.getRelative(coordinates).isOrigin();
+		}
+
 		getSize() {
 			return new Coordinates(...this.to.values.map((toValue, i) => toValue - this.from.values[i]));
 		}
@@ -141,65 +220,15 @@ body {
 			}
 			return this.tiles[coordinates.y()][coordinates.x()];
 		}
-
-		createWorld(doc, game) {
-			const container = doc.createElement('div');
-			container.classList.add('mainView', this.name);
-			const worldView = doc.createElement('table');
-			worldView.classList.add('world');
-			container.appendChild(worldView);
-			for (let y = -this.viewRadius; y <= this.viewRadius; y++) {
-				const row = doc.createElement('tr');
-				worldView.appendChild(row);
-				for (let x = -this.viewRadius; x <= this.viewRadius; x++) {
-					const viewCoordinates = new Coordinates(x, y);
-					const cell = doc.createElement('td');
-					row.appendChild(cell);
-					const img = doc.createElement('img');
-					cell.appendChild(img);
-
-					const isCenter = x == 0 && y == 0;
-					if (!isCenter) {
-						cell.addEventListener('click', (event) => {
-							const mapCoordinates = game.coordinates.add(viewCoordinates);
-							const mapRelative = this.dimensions.getRelative(mapCoordinates);
-							if (mapRelative.isOrigin()) {
-								const tile = this.get(mapCoordinates);
-								if (tile.isNavigable()) {
-									game.moveTo(mapCoordinates);
-								}
-							}
-						}, false);
-					}
-				}
-			}
-
-			const mapView = doc.createElement('table');
-			mapView.classList.add('map');
-			container.appendChild(mapView);
-			for (let y = 0; y < this.dimensions.to.y(); y++) {
-				const row = doc.createElement('tr');
-				mapView.appendChild(row);
-				for (let x = 0; x < this.dimensions.to.x(); x++) {
-					const cell = doc.createElement('td');
-					row.appendChild(cell);
-					const img = doc.createElement('img');
-					this.get(new Coordinates(x, y)).setMapImageUrl(img);
-					cell.appendChild(img);
-				}
-			}
-
-			return container;
-		}
 	};
 
 	const Game = class {
 		constructor(map, coordinates, score, steps, doc, parent) {
 			this.map = map;
-			this.coordinates = coordinates;
-			this.score = score;
-			this.steps = steps;
-			this.mapOpen = false;
+			this.coordinates = new LiveValue(coordinates);
+			this.score = new LiveValue(score);
+			this.steps = new LiveValue(steps);
+			this.mapOpen = new LiveValue(false);
 			// UI
 			this.doc = doc;
 			this.parent = parent;
@@ -207,38 +236,143 @@ body {
 			this.mapPlayerCoordinates = null;
 		}
 
-		moveTo(newCoordinates) {
-			const relative = this.map.dimensions.getRelative(newCoordinates);
-			if (relative.isOrigin()) {
-				this.coordinates = newCoordinates;
-				this.steps++;
-				this.score--;
-				this.updateView();
-			} else {
-				throw new Error('navigateTo coordinates are out-of-bounds');
+		move(offset) {
+			const newCoordinates = this.coordinates.get().add(offset);
+			if (!this.mapOpen.get() && this.map.get(newCoordinates).isNavigable()) {
+				this.moveTo(newCoordinates);
 			}
+		}
+
+		toggleMap() {
+			const newMapOpen = !this.mapOpen.get();
+			this.mapOpen.set(newMapOpen);
+			if (newMapOpen) {
+				this.score.set(this.score.get() - 1);
+			}
+			this.steps.set(this.steps.get() + 1);
+		}
+
+		moveTo(newCoordinates) {
+			this.coordinates.set(newCoordinates);
+			this.steps.set(this.steps.get() + 1);
+			this.score.set(this.score.get() - 1);
 		}
 
 		setMap(map, coordinates) {
 			this.map = map;
-			this.coordinates = coordinates;
-			this.createView();
+			this.coordinates.set(coordinates);
+		}
+	};
+
+	const createGameView = (game, doc) => {
+		const view = doc.createElement('div');
+		view.classList.add('game');
+
+		const mapContainer = createWorldView(game, doc);
+		view.appendChild(mapContainer);
+
+		const controlContainer = doc.createElement('div');
+		controlContainer.classList.add('controls');
+		view.appendChild(controlContainer);
+
+		const saveControl = doc.createElement('img');
+		saveControl.src = 'img/save.png';
+		controlContainer.appendChild(saveControl);
+
+		const mapControl = doc.createElement('img');
+		mapControl.src = 'img/map.png';
+		controlContainer.appendChild(mapControl);
+		mapControl.addEventListener('click', (event) => {
+			game.toggleMap();
+		}, false);
+
+		const scoreContainer = doc.createElement('div');
+		scoreContainer.classList.add('score');
+		view.appendChild(scoreContainer);
+		['Left', 'Middle', 'Right'].forEach((part) => {
+			const scoreBarPart = doc.createElement('img');
+			scoreBarPart.src = `img/scoreBar${ part }.png`;
+			scoreContainer.appendChild(scoreBarPart);
+		});
+		const scoreBar = scoreContainer.childNodes[1];
+		const scoreText = doc.createTextNode('');
+		scoreContainer.appendChild(scoreText);
+
+		game.score.listen((score) => {
+			scoreBar.style.width = `${ score * 10 }px`;
+			scoreText.nodeValue = score;
+		});
+
+		const stepContainer = doc.createElement('div');
+		view.appendChild(stepContainer);
+		stepContainer.appendChild(doc.createTextNode('Steps used: '));
+		const stepText = doc.createTextNode('');
+		stepContainer.appendChild(stepText);
+
+		game.steps.listen((steps) => {
+			stepText.nodeValue = steps;
+		});
+
+		return view;
+	};
+
+	const createWorldView = (game, doc) => {
+		const map = game.map;
+
+		const container = doc.createElement('div');
+		container.classList.add('mainView', map.name);
+		const worldView = doc.createElement('table');
+		worldView.classList.add('world');
+		container.appendChild(worldView);
+		for (let y = -map.viewRadius; y <= map.viewRadius; y++) {
+			const row = doc.createElement('tr');
+			worldView.appendChild(row);
+			for (let x = -map.viewRadius; x <= map.viewRadius; x++) {
+				const viewCoordinates = new Coordinates(x, y);
+				const cell = doc.createElement('td');
+				row.appendChild(cell);
+				const img = doc.createElement('img');
+				cell.appendChild(img);
+
+				const isCenter = x == 0 && y == 0;
+				if (!isCenter) {
+					cell.addEventListener('click', (event) => {
+						game.move(viewCoordinates);
+					}, false);
+				}
+			}
 		}
 
-		updateView() {
-			const mapContainer = this.view.childNodes[0];
-			const worldView = mapContainer.childNodes[0];
-			const mapView = mapContainer.childNodes[1];
+		const mapView = doc.createElement('table');
+		mapView.classList.add('map');
+		container.appendChild(mapView);
+		for (let y = 0; y < map.dimensions.to.y(); y++) {
+			const row = doc.createElement('tr');
+			mapView.appendChild(row);
+			for (let x = 0; x < map.dimensions.to.x(); x++) {
+				const cell = doc.createElement('td');
+				row.appendChild(cell);
+				const img = doc.createElement('img');
+				map.get(new Coordinates(x, y)).setMapImageUrl(img);
+				cell.appendChild(img);
+			}
+		}
 
+		game.mapOpen.listen((mapOpen) => {
+			container.classList.toggle('mapOpen', mapOpen);
+		});
+
+		let mapPlayerCoordinates = null;
+		game.coordinates.listen((coordinates) => {
 			Array.prototype.forEach.call(worldView.childNodes, (row, y) => {
 				Array.prototype.forEach.call(row.childNodes, (cell, x) => {
-					const relative = new Coordinates(x - this.map.viewRadius, y - this.map.viewRadius);
+					const relative = new Coordinates(x - map.viewRadius, y - map.viewRadius);
 					const img = cell.firstChild;
 					if (relative.isOrigin()) {
-						this.map.playerTile.setWorldImageUrl(img);
+						map.playerTile.setWorldImageUrl(img);
 					} else {
-						const coordinates = this.coordinates.add(relative);
-						const tile = this.map.get(coordinates);
+						const tileCoordinates = coordinates.add(relative);
+						const tile = map.get(tileCoordinates);
 						const img = cell.firstChild;
 						tile.setWorldImageUrl(img);
 						cell.classList.toggle('navigable', tile.isNavigable());
@@ -246,73 +380,14 @@ body {
 				});
 			});
 
-			if (this.mapPlayerCoordinates) {
-				this.map.get(this.mapPlayerCoordinates).setMapImageUrl(mapView.childNodes[this.mapPlayerCoordinates.y()].childNodes[this.mapPlayerCoordinates.x()].firstChild);
+			if (mapPlayerCoordinates) {
+				map.get(mapPlayerCoordinates).setMapImageUrl(mapView.childNodes[mapPlayerCoordinates.y()].childNodes[mapPlayerCoordinates.x()].firstChild);
 			}
-			this.mapPlayerCoordinates = this.coordinates;
-			this.map.playerTile.setMapImageUrl(mapView.childNodes[this.coordinates.y()].childNodes[this.coordinates.x()].firstChild);
+			mapPlayerCoordinates = coordinates;
+			map.playerTile.setMapImageUrl(mapView.childNodes[coordinates.y()].childNodes[coordinates.x()].firstChild);
+		});
 
-			this.updateScoreView();
-		}
-
-		updateScoreView() {
-			const scoreContainer = this.view.childNodes[2];
-			scoreContainer.childNodes[1].style.width = `${ this.score * 10 }px`;
-			scoreContainer.childNodes[3].nodeValue = this.score;
-			const stepNode = this.view.childNodes[3].childNodes[1];
-			stepNode.nodeValue = this.steps;
-		}
-
-		createView() {
-			if (this.view) {
-				this.parent.removeChild(this.view);
-			}
-
-			this.view = this.doc.createElement('div');
-			this.view.classList.add('game');
-			this.parent.appendChild(this.view);
-
-			const mapContainer = this.map.createWorld(this.doc, this);
-			this.view.appendChild(mapContainer);
-
-			const controlContainer = this.doc.createElement('div');
-			controlContainer.classList.add('controls');
-			this.view.appendChild(controlContainer);
-
-			const saveControl = this.doc.createElement('img');
-			saveControl.src = 'img/save.png';
-			controlContainer.appendChild(saveControl);
-
-			const mapControl = this.doc.createElement('img');
-			mapControl.src = 'img/map.png';
-			controlContainer.appendChild(mapControl);
-			mapControl.addEventListener('click', (event) => {
-				this.mapOpen = !this.mapOpen;
-				if (this.mapOpen) {
-					this.score -= 1;
-				}
-				this.steps++;
-				this.view.childNodes[0].classList.toggle('mapOpen', this.mapOpen);
-				this.updateScoreView();
-			}, false);
-
-			const scoreContainer = this.doc.createElement('div');
-			scoreContainer.classList.add('score');
-			this.view.appendChild(scoreContainer);
-			['Left', 'Middle', 'Right'].forEach((part) => {
-				const scoreBar = this.doc.createElement('img');
-				scoreBar.src = `img/scoreBar${ part }.png`;
-				scoreContainer.appendChild(scoreBar);
-			});
-			scoreContainer.appendChild(this.doc.createTextNode(''));
-
-			const stepContainer = this.doc.createElement('div');
-			this.view.appendChild(stepContainer);
-			stepContainer.appendChild(this.doc.createTextNode('Steps used: '));
-			stepContainer.appendChild(this.doc.createTextNode(''));
-
-			this.updateView();
-		}
+		return container;
 	};
 
 	const rToTile = new Map();
@@ -352,7 +427,7 @@ body {
 				if (vertical == '' && horizontal == '') {
 					return null;
 				}
-				return new Tile(null, 'border' + vertical + horizontal, null);
+				return new Tile(null, 'border' + vertical + horizontal, Tile.IMPASSIBLE);
 			});
 		}),
 		byR: new Map(),
@@ -391,9 +466,6 @@ body {
 			});
 		}
 	}
-
-	const win = window;
-	const doc = win.document;
 
 	let game;
 	{
@@ -461,7 +533,7 @@ body {
 		});
 	}
 
-	game.createView();
+	doc.body.appendChild(createGameView(game, doc));
 }
 </script>
 </body>
