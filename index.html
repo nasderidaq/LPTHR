@@ -7,14 +7,17 @@ body {
 	background: #000;
 	color: #fff;
 }
+.top {
+	display: flex;
+}
 .mainView {
 	display: inline-block;
+	flex: 0 0 450px;
 	height: 450px;
-	width: 450px;
+	user-select: none;
 }
 .world {
 	border-collapse: collapse;
-	user-select: none;
 }
 .mainView.mapOpen .world {
 	display: none;
@@ -29,15 +32,12 @@ body {
 	margin: 0;
 	-webkit-user-drag: none;
 }
-.sea > .world, .sea > .map {
-	background: #039;
-}
-.land > .world, .land > .map {
-	background: #fc6;
-}
 .map {
 	border-collapse: collapse;
 	display: none;
+}
+.map > tr > td > img {
+	-webkit-user-drag: none;
 }
 .mainView.mapOpen .map {
 	display: block;
@@ -54,6 +54,11 @@ body {
 .navigable {
 	cursor: pointer;
 }
+.sidebar {
+	display: flex;
+	flex-direction: column;
+	width: 144px;
+}
 .score > img {
 	height: 10px;
 	vertical-align: middle;
@@ -63,12 +68,21 @@ body {
 	margin-top: 16px;
 }
 .controls {
-	display: inline-block;
-	padding-top: 267px;;
-	vertical-align: top;
+	align-items: flex-end;
+	display: flex;
+	flex: 0 0 311px;
 }
-.controls img {
+.controls > img {
 	cursor: pointer;
+	height: 44px;
+}
+.items {
+	align-items: flex-end;
+	display: flex;
+	flex: 1 0;
+}
+.items > img {
+	height: 44px;
 }
 </style>
 </head>
@@ -202,13 +216,15 @@ body {
 	};
 
 	const WorldMap = class {
-		constructor(name, borderTiles, playerTile, tiles, start, viewRadius) {
+		constructor(name, borderTiles, playerTile, tiles, start, viewRadius, backgroundColor) {
 			this.name = name;
 			this.borderTiles = borderTiles;
 			this.playerTile = playerTile;
 			this.tiles = tiles;
+			this.items = [1, 2].map((n) => new LiveValue(false));
 			this.start = start;
 			this.viewRadius = viewRadius;
+			this.backgroundColor = backgroundColor;
 
 			this.size = new Coordinates(tiles[0].length, tiles.length);
 			this.dimensions = new Space(new Coordinates(0, 0), this.size);
@@ -226,6 +242,10 @@ body {
 			if (this.dimensions.doesContain(coordinates)) {
 				this.tiles[coordinates.y()][coordinates.x()] = tile;
 			}
+		}
+
+		pickup(item) {
+			this.items[item].set(true);
 		}
 	};
 
@@ -270,6 +290,10 @@ body {
 			this.map.update(this.coordinates.get(), tile);
 		}
 
+		pickup(item) {
+			this.map.pickup(item);
+		}
+
 		setMap(map, coordinates) {
 			this.map = map;
 			this.coordinates.set(coordinates);
@@ -283,27 +307,12 @@ body {
 		const mapContainer = createWorldView(game, doc);
 		view.appendChild(mapContainer);
 
-		const controlContainer = doc.createElement('div');
-		controlContainer.classList.add('controls');
-		view.appendChild(controlContainer);
-
-		const saveControl = doc.createElement('img');
-		saveControl.src = 'img/save.png';
-		controlContainer.appendChild(saveControl);
-
-		const mapControl = doc.createElement('img');
-		mapControl.src = 'img/map.png';
-		controlContainer.appendChild(mapControl);
-		mapControl.addEventListener('click', (event) => {
-			game.toggleMap();
-		}, false);
-
 		const scoreContainer = doc.createElement('div');
 		scoreContainer.classList.add('score');
 		view.appendChild(scoreContainer);
 		['Left', 'Middle', 'Right'].forEach((part) => {
 			const scoreBarPart = doc.createElement('img');
-			scoreBarPart.src = `img/scoreBar${ part }.png`;
+			scoreBarPart.src = `img/scoreBar${part}.png`;
 			scoreContainer.appendChild(scoreBarPart);
 		});
 		const scoreBar = scoreContainer.childNodes[1];
@@ -311,7 +320,7 @@ body {
 		scoreContainer.appendChild(scoreText);
 
 		game.score.listen((score) => {
-			scoreBar.style.width = `${ score * 10 }px`;
+			scoreBar.style.width = `${score * 10}px`;
 			scoreText.nodeValue = score;
 		});
 
@@ -353,10 +362,16 @@ body {
 		const map = game.map;
 
 		const container = doc.createElement('div');
-		container.classList.add('mainView', map.name);
+		container.classList.add('top');
+
+		const mainView = doc.createElement('div');
+		mainView.classList.add('mainView');
+		container.appendChild(mainView);
+
 		const worldView = doc.createElement('table');
 		worldView.classList.add('world');
-		container.appendChild(worldView);
+		worldView.style.backgroundColor = map.backgroundColor;
+		mainView.appendChild(worldView);
 		for (let y = -map.viewRadius; y <= map.viewRadius; y++) {
 			const row = doc.createElement('tr');
 			worldView.appendChild(row);
@@ -378,7 +393,8 @@ body {
 
 		const mapView = doc.createElement('table');
 		mapView.classList.add('map');
-		container.appendChild(mapView);
+		mapView.style.backgroundColor = map.backgroundColor;
+		mainView.appendChild(mapView);
 		for (let y = 0; y < map.dimensions.to.y(); y++) {
 			const row = doc.createElement('tr');
 			mapView.appendChild(row);
@@ -392,7 +408,7 @@ body {
 		}
 
 		game.mapOpen.listen((mapOpen) => {
-			container.classList.toggle('mapOpen', mapOpen);
+			mainView.classList.toggle('mapOpen', mapOpen);
 		});
 
 		let mapPlayerCoordinates = null;
@@ -420,6 +436,41 @@ body {
 			map.playerTile.setMapImageUrl(mapView.childNodes[coordinates.y()].childNodes[coordinates.x()].firstChild);
 		});
 
+		const sidebar = doc.createElement('div');
+		sidebar.classList.add('sidebar');
+		container.appendChild(sidebar);
+
+		const controlContainer = doc.createElement('div');
+		controlContainer.classList.add('controls');
+		sidebar.appendChild(controlContainer);
+
+		const saveControl = doc.createElement('img');
+		saveControl.src = 'img/save.png';
+		controlContainer.appendChild(saveControl);
+
+		const mapControl = doc.createElement('img');
+		mapControl.src = 'img/map.png';
+		controlContainer.appendChild(mapControl);
+		mapControl.addEventListener('click', (event) => {
+			game.toggleMap();
+		}, false);
+
+		const itemContainer = doc.createElement('div');
+		itemContainer.classList.add('items');
+		sidebar.appendChild(itemContainer);
+
+		map.items.forEach((item, n) => {
+			const itemSlot = doc.createElement('img');
+			itemContainer.appendChild(itemSlot);
+			item.listen((item) => {
+				if (item) {
+					itemSlot.src = `${map.name}/items/item${n + 1}.png`;
+				} else {
+					itemSlot.removeAttribute('src');
+				}
+			});
+		});
+
 		return container;
 	};
 
@@ -436,11 +487,11 @@ body {
 		}
 
 		setMapImageUrl(img) {
-			Tile.setImageUrl(img, this.mapType && `sea/map/${ this.mapType }.png`);
+			Tile.setImageUrl(img, this.mapType && `sea/map/${this.mapType}.png`);
 		}
 
 		setWorldImageUrl(img) {
-			Tile.setImageUrl(img, this.worldType && `sea/world/${ this.worldType }.png`);
+			Tile.setImageUrl(img, this.worldType && `sea/world/${this.worldType}.png`);
 		}
 
 		static setImageUrl(img, src) {
@@ -456,8 +507,8 @@ body {
 
 	const TILES = {
 		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE), // Row Boat, Foot
-		SURFACE_1: new Tile(null, null, Tile.NOOP), // Water, Sand
-		SURFACE_2: new Tile(null, 'surface2', Tile.NOOP), // Wave, Dune
+		TERRAIN_1: new Tile(null, 'terrain1', Tile.NOOP), // Water, Sand
+		TERRAIN_2: new Tile(null, 'terrain2', Tile.NOOP), // Wave, Dune
 		OBSTACLE_1: new Tile('obstacle', 'obstacle1', Tile.IMPASSIBLE), // Rock, 
 		OBSTACLE_2: new Tile('obstacle', 'obstacle2', Tile.IMPASSIBLE), // Monkey Island, 
 		OBSTACLE_3: new Tile('obstacle', 'obstacle3', Tile.IMPASSIBLE), // Crocodile Island, 
@@ -476,8 +527,8 @@ body {
 		TREASURE_2_EMPTY: new Tile('treasure', 'treasure2Empty', Tile.NOOP), // Open Gold Chest,
 		TREASURE_3_EMPTY: new Tile('treasure', 'treasure3Empty', Tile.NOOP), // Gold Barrel, 
 		TREASURE_4_EMPTY: new Tile('treasure', 'treasure4Empty', Tile.NOOP), // Shipwreck, 
-		ITEM_1: new Tile('item1', 'item1', (game) => { game.updateTile(TILES.ITEM_1_EMPTY); }), // Bottle, 
-		ITEM_2: new Tile('item2', 'item2', (game) => { game.updateTile(TILES.ITEM_2_EMPTY); }), // Shovel, 
+		ITEM_1: new Tile('item1', 'item1', (game) => { game.updateTile(TILES.ITEM_1_EMPTY); game.pickup(0); }), // Bottle, 
+		ITEM_2: new Tile('item2', 'item2', (game) => { game.updateTile(TILES.ITEM_2_EMPTY); game.pickup(1); }), // Shovel, 
 		ITEM_1_EMPTY: new Tile('item1', 'item1Empty', Tile.NOOP), // Water, 
 		ITEM_2_EMPTY: new Tile('item2', 'item2Empty', Tile.NOOP), // Raft, 
 		GOAL: new Tile('goal', 'goal', (game) => { }), // Treasure Island, 
@@ -537,9 +588,9 @@ body {
 		];
 
 		const TILES_BY_R = new Map([
-			['@', TILES.SURFACE_1],
-			[' ', TILES.SURFACE_1],
-			['~', TILES.SURFACE_2],
+			['@', TILES.TERRAIN_1],
+			[' ', TILES.TERRAIN_1],
+			['~', TILES.TERRAIN_2],
 			['#', TILES.OBSTACLE_1],
 			['O', TILES.OBSTACLE_2],
 			['C', TILES.OBSTACLE_3],
@@ -552,8 +603,8 @@ body {
 			['!', TILES.TREASURE_2],
 			['$', TILES.TREASURE_3],
 			['+', TILES.TREASURE_4],
-			['B', TILES.ITEM_1],
-			['S', TILES.ITEM_2],
+			['S', TILES.ITEM_1],
+			['B', TILES.ITEM_2],
 			['T', TILES.GOAL],
 			['*', TILES.ENEMY_1],
 			[',', TILES.ENEMY_2],
@@ -564,7 +615,7 @@ body {
 
 		const maps = new Map();
 		rMaps.forEach((rMap, i) => {
-			const [name, viewRadius, color, rTiles] = rMap;
+			const [name, viewRadius, backgroundColor, rTiles] = rMap;
 			const tiles = [];
 			let start = new Coordinates(0, 0);
 
@@ -582,7 +633,7 @@ body {
 				});
 			});
 
-			const map = new WorldMap(name, BORDER_TILES, TILES.PLAYER, tiles, start, viewRadius);
+			const map = new WorldMap(name, BORDER_TILES, TILES.PLAYER, tiles, start, viewRadius, backgroundColor);
 			maps.set(name, map);
 			if (i == 0) {
 				game = new Game(map, map.start, 19, 1);
