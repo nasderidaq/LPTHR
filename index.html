@@ -310,8 +310,21 @@ body {
 			this.getMap().pickup(item);
 		}
 
+		goToNextMap() {
+			this.mapIndex.set(this.mapIndex.get() + 1);
+			this.coordinates.set(this.getMap().start);
+		}
+
 		getMap() {
 			return this.maps[this.mapIndex.get()];
+		}
+	};
+
+	const setSrc = (img, src) => {
+		if (src == null) {
+			img.removeAttribute('src');
+		} else {
+			img.src = src;
 		}
 	};
 
@@ -433,7 +446,7 @@ body {
 				const cell = doc.createElement('td');
 				row.appendChild(cell);
 				const img = doc.createElement('img');
-				map.get(new Coordinates(x, y)).setMapImageUrl(img);
+				setSrc(img, map.get(new Coordinates(x, y)).getMapImageUrl(game));
 				cell.appendChild(img);
 			}
 		}
@@ -445,22 +458,26 @@ body {
 					const relative = new Coordinates(x - map.viewRadius, y - map.viewRadius);
 					const img = cell.firstChild;
 					if (relative.isOrigin()) {
-						map.playerTile.setWorldImageUrl(img);
+						setSrc(img, map.playerTile.getWorldImageUrl(game));
 					} else {
 						const tileCoordinates = coordinates.add(relative);
 						const tile = map.get(tileCoordinates);
 						const img = cell.firstChild;
-						tile.setWorldImageUrl(img);
+						setSrc(img, tile.getWorldImageUrl(game));
 						cell.classList.toggle('navigable', tile.isNavigable());
 					}
 				});
 			});
 
 			if (mapPlayerCoordinates) {
-				map.get(mapPlayerCoordinates).setMapImageUrl(mapView.childNodes[mapPlayerCoordinates.y()].childNodes[mapPlayerCoordinates.x()].firstChild);
+				setSrc(
+					mapView.childNodes[mapPlayerCoordinates.y()].childNodes[mapPlayerCoordinates.x()].firstChild,
+					map.get(mapPlayerCoordinates).getMapImageUrl(game));
 			}
 			mapPlayerCoordinates = coordinates;
-			map.playerTile.setMapImageUrl(mapView.childNodes[coordinates.y()].childNodes[coordinates.x()].firstChild);
+			setSrc(
+				mapView.childNodes[coordinates.y()].childNodes[coordinates.x()].firstChild,
+				map.playerTile.getMapImageUrl(game));
 		});
 
 		const sidebar = doc.createElement('div');
@@ -513,20 +530,12 @@ body {
 			return this.transition != Tile.IMPASSIBLE;
 		}
 
-		setMapImageUrl(img) {
-			Tile.setImageUrl(img, this.mapType && `sea/map/${this.mapType}.png`);
+		getMapImageUrl(game) {
+			return this.mapType == null ? null : `${game.getMap().name}/map/${this.mapType}.png`;
 		}
 
-		setWorldImageUrl(img) {
-			Tile.setImageUrl(img, this.worldType && `sea/world/${this.worldType}.png`);
-		}
-
-		static setImageUrl(img, src) {
-			if (src == null) {
-				img.removeAttribute('src');
-			} else {
-				img.src = src;
-			}
+		getWorldImageUrl(game) {
+			return this.worldType == null ? null : `${game.getMap().name}/world/${this.worldType}.png`;
 		}
 	};
 	Tile.IMPASSIBLE = null;
@@ -617,8 +626,12 @@ body {
 	}
 
 	const TILES = {
-		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE), // Row Boat, Foot
-		GOAL: new Tile('goal', 'goal', (game) => { }), // Treasure Island,
+		// Row Boat, Foot
+		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE),
+		// Treasure Island, 
+		GOAL: new Tile('goal', 'goal', (game) => {
+			game.goToNextMap();
+		}),
 	};
 
 	let game;
