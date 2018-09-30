@@ -266,8 +266,9 @@ body {
 	};
 
 	const Game = class {
-		constructor(map, coordinates, score, steps) {
-			this.map = map;
+		constructor(maps, mapIndex, coordinates, score, steps) {
+			this.maps = maps;
+			this.mapIndex = new LiveValue(mapIndex);
 			this.coordinates = new LiveValue(coordinates);
 			this.score = new LiveValue(score);
 			this.steps = new LiveValue(steps);
@@ -277,12 +278,12 @@ body {
 
 		move(offset) {
 			const newCoordinates = this.coordinates.get().add(offset);
-			if (!this.mapOpen.get() && this.map.get(newCoordinates).isNavigable()) {
+			if (!this.mapOpen.get() && this.getMap().get(newCoordinates).isNavigable()) {
 				this.coordinates.set(newCoordinates);
 				this.steps.set(this.steps.get() + 1);
 				this.score.set(this.score.get() - 1);
 				this.message.set(null);
-				this.map.get(newCoordinates).transition(this);
+				this.getMap().get(newCoordinates).transition(this);
 			}
 		}
 
@@ -302,16 +303,15 @@ body {
 		}
 
 		updateTile(tile) {
-			this.map.update(this.coordinates.get(), tile);
+			this.getMap().update(this.coordinates.get(), tile);
 		}
 
 		pickup(item) {
-			this.map.pickup(item);
+			this.getMap().pickup(item);
 		}
 
-		setMap(map, coordinates) {
-			this.map = map;
-			this.coordinates.set(coordinates);
+		getMap() {
+			return this.maps[this.mapIndex.get()];
 		}
 	};
 
@@ -390,7 +390,7 @@ body {
 	};
 
 	const createWorldView = (game, doc) => {
-		const map = game.map;
+		const map = game.getMap();
 
 		const container = doc.createElement('div');
 		container.classList.add('top');
@@ -611,7 +611,7 @@ body {
 	// Skeleton, 
 	const ENEMY_TILES = [];
 	for (let n = 1; n <= 7; n++) {
-		ENEMY_TILES.push(new Tile(null, 'enemy1', (game) => {
+		ENEMY_TILES.push(new Tile(null, `enemy${n}`, (game) => {
 			game.addPoints(-floor(random() * 7));
 		}));
 	}
@@ -684,8 +684,7 @@ body {
 			['&', ENEMY_TILES[4]],
 		]);
 
-		const maps = new Map();
-		rMaps.forEach((rMap, i) => {
+		const maps = rMaps.map((rMap) => {
 			const [name, viewRadius, backgroundColor, rTiles] = rMap;
 			const tiles = [];
 			let start = new Coordinates(0, 0);
@@ -704,12 +703,9 @@ body {
 				});
 			});
 
-			const map = new WorldMap(name, BORDER_TILES, TILES.PLAYER, tiles, start, viewRadius, backgroundColor);
-			maps.set(name, map);
-			if (i == 0) {
-				game = new Game(map, map.start, 19, 1);
-			}
+			return new WorldMap(name, BORDER_TILES, TILES.PLAYER, tiles, start, viewRadius, backgroundColor);
 		});
+		game = new Game(maps, 0, maps[0].start, 19, 1);
 	}
 
 	doc.body.appendChild(createGameView(game, doc));
