@@ -29,14 +29,23 @@ body {
 }
 .world > tr > td > img {
 	display: block;
+	height: 150px;
 	margin: 0;
+	width: 150px;
 	-webkit-user-drag: none;
 }
 .map {
 	border-collapse: collapse;
 	display: none;
 }
+.map > tr > td {
+	height: 32px;
+	width: 32px;
+}
 .map > tr > td > img {
+	height: 32px;
+	margin: 0;
+	width: 32px;
 	-webkit-user-drag: none;
 }
 .mapOpen .map {
@@ -320,11 +329,16 @@ body {
 		}
 	};
 
-	const setSrc = (img, src) => {
-		if (src == null) {
-			img.removeAttribute('src');
-		} else {
+	const imageWithSrc = (parent, src) => {
+		let img = parent.firstChild;
+		if (src) {
+			if (!img) {
+				img = doc.createElement('img');
+				parent.appendChild(img);
+			}
 			img.src = src;
+		} else if (img) {
+			parent.removeChild(img);
 		}
 	};
 
@@ -423,11 +437,8 @@ body {
 				const viewCoordinates = new Coordinates(x, y);
 				const cell = doc.createElement('td');
 				row.appendChild(cell);
-				const img = doc.createElement('img');
-				cell.appendChild(img);
 
-				const isCenter = x == 0 && y == 0;
-				if (!isCenter) {
+				if (!viewCoordinates.isOrigin()) {
 					cell.addEventListener('click', (event) => {
 						game.move(viewCoordinates);
 					}, false);
@@ -445,9 +456,7 @@ body {
 			for (let x = 0; x < map.dimensions.to.x(); x++) {
 				const cell = doc.createElement('td');
 				row.appendChild(cell);
-				const img = doc.createElement('img');
-				setSrc(img, map.get(new Coordinates(x, y)).getMapImageUrl(game));
-				cell.appendChild(img);
+				imageWithSrc(cell, map.get(new Coordinates(x, y)).getMapImageUrl(game));
 			}
 		}
 
@@ -456,28 +465,25 @@ body {
 			Array.prototype.forEach.call(worldView.childNodes, (row, y) => {
 				Array.prototype.forEach.call(row.childNodes, (cell, x) => {
 					const relative = new Coordinates(x - map.viewRadius, y - map.viewRadius);
-					const img = cell.firstChild;
 					if (relative.isOrigin()) {
-						setSrc(img, map.playerTile.getWorldImageUrl(game));
+						imageWithSrc(cell, map.playerTile.getWorldImageUrl(game));
 					} else {
 						const tileCoordinates = coordinates.add(relative);
 						const tile = map.get(tileCoordinates);
-						const img = cell.firstChild;
-						setSrc(img, tile.getWorldImageUrl(game));
+						imageWithSrc(cell, tile.getWorldImageUrl(game));
 						cell.classList.toggle('navigable', tile.isNavigable());
 					}
 				});
 			});
 
 			if (mapPlayerCoordinates) {
-				setSrc(
-					mapView.childNodes[mapPlayerCoordinates.y()].childNodes[mapPlayerCoordinates.x()].firstChild,
+				imageWithSrc(
+					mapView.childNodes[mapPlayerCoordinates.y()].childNodes[mapPlayerCoordinates.x()],
 					map.get(mapPlayerCoordinates).getMapImageUrl(game));
 			}
 			mapPlayerCoordinates = coordinates;
-			setSrc(
-				mapView.childNodes[coordinates.y()].childNodes[coordinates.x()].firstChild,
-				map.playerTile.getMapImageUrl(game));
+			const cell = mapView.childNodes[coordinates.y()].childNodes[coordinates.x()];
+			imageWithSrc(cell, map.playerTile.getMapImageUrl(game));
 		});
 
 		const sidebar = doc.createElement('div');
@@ -551,10 +557,10 @@ body {
 
 	// Water, Sand
 	// Bubbley Water, Spotted Dirt
-	const TERRAIN_TILES = [];
-	for (let n = 1; n <= 2; n++) {
-		TERRAIN_TILES.push(new Tile(null, `terrain${n}`, NOOP));
-	}
+	const TERRAIN_TILES = [
+		new Tile(null, null, NOOP),
+		new Tile(null, 'terrain2', NOOP),
+	];
 
 	// Bottle, 
 	// Shovel, 
