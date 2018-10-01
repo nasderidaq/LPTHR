@@ -562,11 +562,11 @@ body {
 		new Tile(null, 'terrain2', NOOP),
 	];
 
-	// Bottle, 
-	// Shovel, 
+	// Shovel, Axe
+	// Bottle, Key
 	const ITEM_TILES = [];
-	// Water, 
-	// Raft, 
+	// Raft, Monkey Tree Right
+	// Water, Monkey Tree Left
 	const EMPTY_ITEM_TILES = [];
 	for (let i = 0; i < 2; i++) {
 		const n = i + 1;
@@ -578,36 +578,39 @@ body {
 		}));
 	}
 
-	// Rock, 
-	// Monkey Island, 
-	// Crocodile Island, 
-	// Figure Island, 
-	// Sinking Boat, 
+	// Rock, Monkey Trees
+	// Monkey Island, Rock
+	// Crocodile Island, Skeleton Rock
+	// Figure Island, Pond
 	const OBSTACLE_TILES = [];
-	for (let n = 1; n <= 5; n++) {
+	for (let n = 1; n <= 4; n++) {
 		OBSTACLE_TILES.push(new Tile('obstacle', `obstacle${n}`, Tile.IMPASSIBLE));
 	}
 
-	// Island Top Left, 
-	// Island Top Middle, 
-	// Island Top Right, 
-	// Island Middle Left, 
-	// Island Bottom Left, 
+	// Island Top Left, Monley Trees
+	// Island Top Middle, Rock
+	// Island Top Right, Skeleton Rock
+	// Goal Top Left, Tree
+	// Goal Bottom Left, Monkey Tree Left
 	const HIDDEN_OBSTACLE_TILES = [];
 	for (let n = 1; n <= 5; n++) {
 		HIDDEN_OBSTACLE_TILES.push(new Tile(null, `hiddenObstacle${n}`, Tile.IMPASSIBLE));
 	}
 
-	// Closed Chest, 
-	// Open Gold Chest,
-	// Gold Barrel, 
-	// Shipwreck,  
+	// Open Chest, Open Chest Tree
+	// Open Chest, Burried Chest Pit
+	// Open Chest, Open Chest Tree 
+	// Bubbley Water, Monkey Tree Left
+	// Barrel, Barrel
+	// Bubbley Water, Burried Chest Pit
 	const EMPTY_TREASURE_TILES = [];
-	// Closed Chest, 
-	// Open Gold Chest,
-	// Gold Barrel, 
-	// Shipwreck, 
-	const TREASURE_TILES = [4, 1, 7, 1].map((points, i) => {
+	// Open Gold Chest, Closed Chest Tree
+	// Closed Chest, Open Gold Chest Pit
+	// Open Gold Chest, Open Gold Chest Tree
+	// Shipwreck, Burried Chest Tree
+	// Gold Barrel, Full Barrel
+	// Sinking Boat, Closed Chest Pit
+	const TREASURE_TILES = [1, 4, 1, 1, 7, 1].map((points, i) => {
 		const n = i + 1;
 		const emptyTile = new Tile('treasure', `treasure${n}Empty`, NOOP);
 		EMPTY_TREASURE_TILES.push(emptyTile);
@@ -617,15 +620,16 @@ body {
 		});
 	});
 
-	// Octopus, 
-	// Shark Head, 
-	// Pirate, 
-	// Soldier, 
-	// Cannon, 
-	// Shark Fin, 
-	// Skeleton, 
+	// Octopus, People Barrel
+	// Pirate, Masks
+	// Cannon, Snakes Barrel
+	// Soldier, Crocodile Pong
+	// Shark Fin, Person Barrel
+	// Shark Head, Snake Tree
+	// Skeleton, Pit
+	// Shark Fin, Crocodile Tree
 	const ENEMY_TILES = [];
-	for (let n = 1; n <= 7; n++) {
+	for (let n = 1; n <= 8; n++) {
 		ENEMY_TILES.push(new Tile(null, `enemy${n}`, (game) => {
 			game.addPoints(-floor(random() * 7));
 		}));
@@ -634,7 +638,7 @@ body {
 	const TILES = {
 		// Row Boat, Foot
 		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE),
-		// Treasure Island, 
+		// Dock, Treasure Pile
 		GOAL: new Tile('goal', 'goal', (game) => {
 			game.goToNextMap();
 		}),
@@ -646,14 +650,14 @@ body {
 			['sea', 1, '#039', [
 				'.          .  ',
 				'    # #       ',
-				' # .  #       ',
-				'  #    #B  . T',
-				'        #     ',
+				' # .  #      r',
+				'  #    #2  . T',
+				'        #    L',
 				' C~  #   .#.  ',
 				'~~ #~~+~!~    ',
 				' ~O /~~C ~C # ',
 				'  ~#  $~~ $   ',
-				' O~,~.~ CS &  ',
+				' O~^~.~ C1 &  ',
 				'~~$~O C~~O~   ',
 				'. #~~~~*  #  .',
 				'~O ~~@  ~~~%  ',
@@ -662,14 +666,14 @@ body {
 			['land', 1, '#fc6', [
 				'.          .  ',
 				'    # #       ',
-				' # .  #       ',
-				'  #    #B  . T',
-				'        #     ',
+				' # .  #      r',
+				'  #    #2  . T',
+				'        #    L',
 				' C~  #   .#.  ',
 				'~~ #~~+~!~    ',
 				' ~O /~~C ~C # ',
 				'  ~#  $~~ $   ',
-				' O~,~.~ CS &  ',
+				' O~^~.~ C1 &  ',
 				'~~$~O C~~O~   ',
 				'. #~~~~*  #  .',
 				'~O ~~@  ~~~%  ',
@@ -687,20 +691,25 @@ body {
 			['q', HIDDEN_OBSTACLE_TILES[0]],
 			['n', HIDDEN_OBSTACLE_TILES[1]],
 			['p', HIDDEN_OBSTACLE_TILES[2]],
-			['<', HIDDEN_OBSTACLE_TILES[3]],
+			['r', HIDDEN_OBSTACLE_TILES[3]],
 			['L', HIDDEN_OBSTACLE_TILES[4]],
-			['.', TREASURE_TILES[0]],
-			['!', TREASURE_TILES[1]],
-			['$', TREASURE_TILES[2]],
+			['!', TREASURE_TILES[0]],
+			['.', TREASURE_TILES[1]],
+			['?', TREASURE_TILES[2]],
 			['+', TREASURE_TILES[3]],
-			['S', ITEM_TILES[0]],
-			['B', ITEM_TILES[1]],
+			['$', TREASURE_TILES[4]],
+			['v', TREASURE_TILES[5]],
+			['1', ITEM_TILES[0]],
+			['2', ITEM_TILES[1]],
 			['T', TILES.GOAL],
 			['*', ENEMY_TILES[0]],
-			[',', ENEMY_TILES[1]],
-			['%', ENEMY_TILES[2]],
+			['%', ENEMY_TILES[1]],
+			['&', ENEMY_TILES[2]],
 			['/', ENEMY_TILES[3]],
-			['&', ENEMY_TILES[4]],
+			['^', ENEMY_TILES[4]],
+			['w', ENEMY_TILES[2]],
+			['s', ENEMY_TILES[3]],
+			[',', ENEMY_TILES[4]],
 		]);
 
 		const maps = rMaps.map((rMap) => {
