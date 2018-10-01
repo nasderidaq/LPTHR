@@ -453,7 +453,7 @@ body {
 		const mapView = doc.createElement('table');
 		mapView.classList.add('map');
 		mainView.appendChild(mapView);
-		mainView.addEventListener('click', (event) => {
+		mapView.addEventListener('click', (event) => {
 			game.toggleMap();
 		}, false);
 		for (let y = 0; y < map.dimensions.to.y(); y++) {
