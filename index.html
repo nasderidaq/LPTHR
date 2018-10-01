@@ -36,6 +36,7 @@ body {
 }
 .map {
 	border-collapse: collapse;
+	cursor: pointer;
 	display: none;
 }
 .map > tr > td {
@@ -453,6 +454,9 @@ body {
 		const mapView = doc.createElement('table');
 		mapView.classList.add('map');
 		mainView.appendChild(mapView);
+		mainView.addEventListener('click', (event) => {
+			game.toggleMap();
+		}, false);
 		for (let y = 0; y < map.dimensions.to.y(); y++) {
 			const row = doc.createElement('tr');
 			mapView.appendChild(row);
