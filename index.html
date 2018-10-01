@@ -475,6 +475,7 @@ body {
 
 		let mapPlayerCoordinates = null;
 		game.coordinates.listen((coordinates) => {
+			const map = game.getMap();
 			Array.prototype.forEach.call(worldView.childNodes, (row, y) => {
 				Array.prototype.forEach.call(row.childNodes, (cell, x) => {
 					const relative = new Coordinates(x - map.viewRadius, y - map.viewRadius);
