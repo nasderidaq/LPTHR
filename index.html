@@ -88,12 +88,10 @@ body {
 	display: flex;
 	flex: 0 0 311px;
 }
-.controls > img {
-	cursor: pointer;
+.controls > input {
 	height: 44px;
 }
 .back {
-	cursor: pointer;
 	display: none;
 }
 .mapOpen .back {
@@ -411,7 +409,8 @@ body {
 			stepText.nodeValue = steps;
 		});
 
-		const backControl = doc.createElement('img');
+		const backControl = doc.createElement('input');
+		backControl.type = 'image';
 		backControl.classList.add('back');
 		backControl.src = 'img/back.png';
 		backControl.addEventListener('click', (event) => {
@@ -512,11 +511,13 @@ body {
 		controlContainer.classList.add('controls');
 		sidebar.appendChild(controlContainer);
 
-		const saveControl = doc.createElement('img');
+		const saveControl = doc.createElement('input');
+		saveControl.type = 'image';
 		saveControl.src = 'img/save.png';
 		controlContainer.appendChild(saveControl);
 
-		const mapControl = doc.createElement('img');
+		const mapControl = doc.createElement('input');
+		mapControl.type = 'image';
 		mapControl.src = 'img/map.png';
 		controlContainer.appendChild(mapControl);
 		mapControl.addEventListener('click', (event) => {
