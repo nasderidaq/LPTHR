@@ -319,9 +319,14 @@ body {
 			this.getMap().pickup(item);
 		}
 
-		goToNextMap() {
-			this.mapIndex.set(this.mapIndex.get() + 1);
-			this.coordinates.set(this.getMap().start);
+		finishMap() {
+			const mapIndex = this.mapIndex.get() + 1;
+			if (this.maps[mapIndex]) {
+				this.mapIndex.set(mapIndex);
+				this.coordinates.set(this.getMap().start);
+			} else {
+				console.log('you win!');
+			}
 		}
 
 		getMap() {
@@ -428,7 +433,6 @@ body {
 
 		const worldView = doc.createElement('table');
 		worldView.classList.add('world');
-		worldView.style.backgroundColor = map.backgroundColor;
 		mainView.appendChild(worldView);
 		for (let y = -map.viewRadius; y <= map.viewRadius; y++) {
 			const row = doc.createElement('tr');
@@ -448,7 +452,6 @@ body {
 
 		const mapView = doc.createElement('table');
 		mapView.classList.add('map');
-		mapView.style.backgroundColor = map.backgroundColor;
 		mainView.appendChild(mapView);
 		for (let y = 0; y < map.dimensions.to.y(); y++) {
 			const row = doc.createElement('tr');
@@ -456,9 +459,19 @@ body {
 			for (let x = 0; x < map.dimensions.to.x(); x++) {
 				const cell = doc.createElement('td');
 				row.appendChild(cell);
-				imageWithSrc(cell, map.get(new Coordinates(x, y)).getMapImageUrl(game));
 			}
 		}
+
+		game.mapIndex.listen((mapIndex) => {
+			const map = game.getMap();
+			worldView.style.backgroundColor = map.backgroundColor;
+			mapView.style.backgroundColor = map.backgroundColor;
+			Array.prototype.forEach.call(mapView.childNodes, (row, y) => {
+				Array.prototype.forEach.call(row.childNodes, (cell, x) => {
+					imageWithSrc(cell, map.get(new Coordinates(x, y)).getMapImageUrl(game));
+				});
+			});
+		});
 
 		let mapPlayerCoordinates = null;
 		game.coordinates.listen((coordinates) => {
@@ -640,7 +653,7 @@ body {
 		PLAYER: new Tile('player', 'player', Tile.IMPASSIBLE),
 		// Dock, Treasure Pile
 		GOAL: new Tile('goal', 'goal', (game) => {
-			game.goToNextMap();
+			game.finishMap();
 		}),
 	};
 
